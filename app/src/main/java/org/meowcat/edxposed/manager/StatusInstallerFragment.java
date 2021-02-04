@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,28 +24,26 @@ import androidx.fragment.app.Fragment;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.google.android.material.snackbar.Snackbar;
 
-import org.meowcat.annotation.NotProguard;
-import org.meowcat.edxposed.manager.util.NavUtil;
-
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 
-import dalvik.system.VMRuntime;
-
-import static android.os.Build.SUPPORTED_32_BIT_ABIS;
-import static android.os.Build.SUPPORTED_64_BIT_ABIS;
 import static android.os.SELinux.isSELinuxEnabled;
+import static org.meowcat.edxposed.manager.Constants.getActiveXposedVersion;
+import static org.meowcat.edxposed.manager.Constants.getBaseDir;
+import static org.meowcat.edxposed.manager.Constants.getInstalledXposedVersion;
+import static org.meowcat.edxposed.manager.Constants.isSELinuxEnforced;
 import static org.meowcat.edxposed.manager.MeowCatApplication.TAG;
+import static org.meowcat.edxposed.manager.XposedApp.CPU_ABI;
+import static org.meowcat.edxposed.manager.XposedApp.getArch;
 
 @SuppressLint("StaticFieldLeak")
 public class StatusInstallerFragment extends Fragment {
 
-    public static final File DISABLE_FILE = new File(XposedApp.BASE_DIR + "conf/disabled");
+    public static final File DISABLE_FILE = new File(getBaseDir() + "conf/disabled");
     //static String ARCH = getArch();
     private static Activity sActivity;
     private static String mUpdateLink;
@@ -55,8 +52,6 @@ public class StatusInstallerFragment extends Fragment {
     private static View mUpdateButton;
     private static TextView mErrorTv;
     private static boolean isXposedInstalled = false;
-    private static String CPU_ABI;
-    private static String CPU_ABI2;
     private TextView txtKnownIssue;
     private Button btnKnownIssue;
 
@@ -119,24 +114,6 @@ public class StatusInstallerFragment extends Fragment {
         return info + " (" + getArch() + ")";
     }
 
-    public static String getArch() {
-        if (CPU_ABI.equals("arm64-v8a")) {
-            return "arm64";
-        } else if (CPU_ABI.equals("x86_64")) {
-            return "x86_64";
-        } else if (CPU_ABI.equals("mips64")) {
-            return "mips64";
-        } else if (CPU_ABI.startsWith("x86") || CPU_ABI2.startsWith("x86")) {
-            return "x86";
-        } else if (CPU_ABI.startsWith("mips")) {
-            return "mips";
-        } else if (CPU_ABI.startsWith("armeabi-v5") || CPU_ABI.startsWith("armeabi-v6")) {
-            return "armv5";
-        } else {
-            return "arm";
-        }
-    }
-
     public static boolean isEnhancementEnabled() {
         return false;
     }
@@ -144,19 +121,6 @@ public class StatusInstallerFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        final String[] abiList;
-        if (VMRuntime.getRuntime().is64Bit()) {
-            abiList = SUPPORTED_64_BIT_ABIS;
-        } else {
-            abiList = SUPPORTED_32_BIT_ABIS;
-        }
-        CPU_ABI = abiList[0];
-        if (abiList.length > 1) {
-            CPU_ABI2 = abiList[1];
-        } else {
-            CPU_ABI2 = "";
-        }
 
         sActivity = getActivity();
     }
@@ -188,12 +152,7 @@ public class StatusInstallerFragment extends Fragment {
             });
         }
 
-        String installedXposedVersion;
-        try {
-            installedXposedVersion = XposedApp.getXposedProp().getVersion();
-        } catch (NullPointerException e) {
-            installedXposedVersion = null;
-        }
+        String installedXposedVersion = getInstalledXposedVersion();
 
         View disableView = v.findViewById(R.id.disableView);
         final SwitchCompat xposedDisable = v.findViewById(R.id.disableSwitch);
@@ -215,27 +174,18 @@ public class StatusInstallerFragment extends Fragment {
 
         manager.setText(mAppVer);
         if (installedXposedVersion != null) {
-            int installedXposedVersionInt = extractIntPart(installedXposedVersion);
-            String installedXposedVersionStr = installedXposedVersionInt + ".0";
-            api.setText(installedXposedVersionStr);
-            framework.setText(installedXposedVersion.replace(installedXposedVersionStr + "-", ""));
-            if (installedXposedVersionInt == XposedApp.getActiveXposedVersion()) {
-                txtInstallError.setText(R.string.installed_lollipop);
-                if (XposedApp.getPreferences().getBoolean("old_success_color", false)) {
-                    txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.download_status_update_available, null));
-                    txtInstallContainer.setBackgroundColor(sActivity.getResources().getColor(R.color.download_status_update_available, null));
-                } else {
-                    txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.status_success, null));
-                    txtInstallContainer.setBackgroundColor(sActivity.getResources().getColor(R.color.status_success, null));
-                }
-                txtInstallIcon.setImageDrawable(sActivity.getResources().getDrawable(R.drawable.ic_check_circle, null));
-                isXposedInstalled = true;
+            api.setText(String.format("v%s.0", getActiveXposedVersion()));
+            framework.setText(installedXposedVersion);
+            txtInstallError.setText(R.string.installed_lollipop);
+            if (XposedApp.getPreferences().getBoolean("old_success_color", false)) {
+                txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.download_status_update_available, null));
+                txtInstallContainer.setBackgroundColor(sActivity.getResources().getColor(R.color.download_status_update_available, null));
             } else {
-                txtInstallError.setText(R.string.installed_lollipop_inactive);
-                txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.amber_500, null));
-                txtInstallContainer.setBackgroundColor(sActivity.getResources().getColor(R.color.amber_500, null));
-                txtInstallIcon.setImageDrawable(sActivity.getResources().getDrawable(R.drawable.ic_warning, null));
+                txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.status_success, null));
+                txtInstallContainer.setBackgroundColor(sActivity.getResources().getColor(R.color.status_success, null));
             }
+            txtInstallIcon.setImageDrawable(sActivity.getResources().getDrawable(R.drawable.ic_check_circle, null));
+            isXposedInstalled = true;
         } else {
             txtInstallError.setText(R.string.not_installed_no_lollipop);
             txtInstallError.setTextColor(sActivity.getResources().getColor(R.color.warning, null));
@@ -285,7 +235,7 @@ public class StatusInstallerFragment extends Fragment {
 
         determineVerifiedBootState(v);
 
-        refreshKnownIssue();
+//        refreshKnownIssue();
         return v;
     }
 
@@ -315,36 +265,6 @@ public class StatusInstallerFragment extends Fragment {
         }
     }
 
-    private boolean isSELinuxEnforced() {
-        boolean result = false;
-        final File SELINUX_STATUS_FILE = new File("/sys/fs/selinux/enforce");
-        if (SELINUX_STATUS_FILE.exists()) {
-            try {
-                FileInputStream fis = new FileInputStream(SELINUX_STATUS_FILE);
-                int status = fis.read();
-                switch (status) {
-                    case 49:
-                        result = true;
-                        break;
-                    case 48:
-                        result = false;
-                        break;
-                    default:
-                        Log.e(TAG, "Unexpected byte " + status + " in /sys/fs/selinux/enforce");
-                }
-                fis.close();
-            } catch (IOException e) {
-                if (e.getMessage().contains("Permission denied")) {
-                    result = true;
-                } else {
-                    Log.e(TAG, "Failed to read SELinux status: " + e.getMessage());
-                    result = false;
-                }
-            }
-        }
-        return result;
-    }
-
     private String getSELinuxStatus() {
         String result;
         if (isSELinuxEnabled()) {
@@ -359,42 +279,34 @@ public class StatusInstallerFragment extends Fragment {
         return result;
     }
 
-    private void refreshKnownIssue() {
-        String issueName = null;
-        String issueLink = null;
-        final ApplicationInfo appInfo = requireActivity().getApplicationInfo();
-        final File baseDir = new File(XposedApp.BASE_DIR);
-        final File baseDirCanonical = getCanonicalFile(baseDir);
-        final File baseDirActual = new File(appInfo.deviceProtectedDataDir);
-        final File baseDirActualCanonical = getCanonicalFile(baseDirActual);
-
-        if (!baseDirCanonical.equals(baseDirActualCanonical)) {
-            Log.e(TAG, "Base directory: " + getPathWithCanonicalPath(baseDir, baseDirCanonical));
-            Log.e(TAG, "Expected: " + getPathWithCanonicalPath(baseDirActual, baseDirActualCanonical));
-            issueName = getString(R.string.known_issue_wrong_base_directory, getPathWithCanonicalPath(baseDirActual, baseDirActualCanonical));
-        } else if (!baseDir.exists()) {
-            issueName = getString(R.string.known_issue_missing_base_directory);
-            issueLink = "https://github.com/rovo89/XposedInstaller/issues/393";
-        } else if (XposedApp.checkAppInstalled(getContext(), "com.solohsu.android.edxp.manager")) {
-            issueName = getString(R.string.edxp_installer_installed);
-            issueLink = getString(R.string.about_support);
-        }
-
-        if (issueName != null) {
-            final String issueLinkFinal = issueLink;
-            txtKnownIssue.setText(getString(R.string.install_known_issue, issueName));
-            txtKnownIssue.setVisibility(View.VISIBLE);
-            if (issueLinkFinal != null) {
-                btnKnownIssue.setOnClickListener(v -> NavUtil.startURL(getActivity(), issueLinkFinal));
-                btnKnownIssue.setVisibility(View.VISIBLE);
-            } else {
-                btnKnownIssue.setVisibility(View.GONE);
-            }
-        } else {
-            txtKnownIssue.setVisibility(View.GONE);
-            btnKnownIssue.setVisibility(View.GONE);
-        }
-    }
+//    private void refreshKnownIssue() {
+//        String issueName = null;
+//        String issueLink = null;
+//        final File baseDir = new File(getBaseDir());
+//
+//        if (!baseDir.exists()) {
+//            issueName = getString(R.string.known_issue_missing_base_directory);
+//            issueLink = "https://github.com/rovo89/XposedInstaller/issues/393";
+//        } else if (XposedApp.checkAppInstalled(getContext(), "com.solohsu.android.edxp.manager")) {
+//            issueName = getString(R.string.edxp_installer_installed);
+//            issueLink = getString(R.string.about_support);
+//        }
+//
+//        if (issueName != null) {
+//            final String issueLinkFinal = issueLink;
+//            txtKnownIssue.setText(getString(R.string.install_known_issue, issueName));
+//            txtKnownIssue.setVisibility(View.VISIBLE);
+//            if (issueLinkFinal != null) {
+//                btnKnownIssue.setOnClickListener(v -> NavUtil.startURL(getActivity(), issueLinkFinal));
+//                btnKnownIssue.setVisibility(View.VISIBLE);
+//            } else {
+//                btnKnownIssue.setVisibility(View.GONE);
+//            }
+//        } else {
+//            txtKnownIssue.setVisibility(View.GONE);
+//            btnKnownIssue.setVisibility(View.GONE);
+//        }
+//    }
 
     private String getAndroidVersion() {
         switch (Build.VERSION.SDK_INT) {
@@ -407,7 +319,7 @@ public class StatusInstallerFragment extends Fragment {
             case 28:
                 return "Pie";
             case 29:
-                return "Queen Cake";
+                return "Quince Tart";
             case 30:
                 return "Red Velvet Cake";
         }
@@ -442,35 +354,5 @@ public class StatusInstallerFragment extends Fragment {
             manufacturer += "(Aliyun OS)";
         }
         return manufacturer;
-    }
-
-    @NotProguard
-    private File getCanonicalFile(File file) {
-        try {
-            return file.getCanonicalFile();
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to get canonical file for " + file.getAbsolutePath(), e);
-            return file;
-        }
-    }
-
-    private String getPathWithCanonicalPath(File file, File canonical) {
-        if (file.equals(canonical)) {
-            return file.getAbsolutePath();
-        } else {
-            return file.getAbsolutePath() + " \u2192 " + canonical.getAbsolutePath();
-        }
-    }
-
-    private int extractIntPart(String str) {
-        int result = 0, length = str.length();
-        for (int offset = 0; offset < length; offset++) {
-            char c = str.charAt(offset);
-            if ('0' <= c && c <= '9')
-                result = result * 10 + (c - '0');
-            else
-                break;
-        }
-        return result;
     }
 }

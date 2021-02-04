@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.Objects;
 
 import static android.app.Activity.RESULT_OK;
+import static org.meowcat.edxposed.manager.Constants.getBaseDir;
 import static org.meowcat.edxposed.manager.MeowCatApplication.TAG;
 import static org.meowcat.edxposed.manager.adapter.LogsHelper.isMainUser;
 
@@ -59,7 +60,7 @@ public class LogsFragment extends Fragment {
     private final String LOG_SUFFIX = ".log";
     @SuppressWarnings("FieldCanBeLocal")
     private final String LOG_OLD_SUFFIX = ".log.old";
-    private final String LOG_PATH = XposedApp.BASE_DIR + "log/";
+    private final String LOG_PATH = getBaseDir() + "log/";
     private RecyclerView mRecyclerView;
     private TabLayout mTabLayout;
     private LogsAdapter adapter;
@@ -215,7 +216,13 @@ public class LogsFragment extends Fragment {
 
     private void send() {
         File realFile = new File(LOG_PATH + activatedConfig.get("fileName") + LOG_SUFFIX);
-        File tempFile = new File(requireContext().getExternalCacheDir(), "tempLog");
+        Calendar now = Calendar.getInstance();
+        String filename = String.format(
+                "EdXposed_" + activatedConfig.get("name") + "_%04d%02d%02d_%02d%02d%02d.txt",
+                now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1,
+                now.get(Calendar.DAY_OF_MONTH), now.get(Calendar.HOUR_OF_DAY),
+                now.get(Calendar.MINUTE), now.get(Calendar.SECOND));
+        File tempFile = new File(requireContext().getExternalCacheDir(), filename);
         try {
             FileInputStream fis = new FileInputStream(realFile);
             FileOutputStream fos = new FileOutputStream(tempFile);
@@ -225,7 +232,7 @@ public class LogsFragment extends Fragment {
                 fos.write(data, 0, len);
             }
             fis.close();
-            fis.close();
+            fos.close();
         } catch (Exception e) {
             Log.e(TAG, Objects.requireNonNull(e.getMessage()));
             Snackbar.make(requireView().findViewById(R.id.container), getResources().getString(R.string.logs_save_failed) + "\n" + e.getMessage(), Snackbar.LENGTH_LONG).show();
